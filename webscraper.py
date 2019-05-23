@@ -1,45 +1,70 @@
 import bs4
 from urllib.request import urlopen as uReq
 from bs4 import BeautifulSoup as soup
+import csv
 
-
-my_url = "https://www.newegg.com/global/fi-en/Video-Cards-Video-Devices/Category/ID-38"
 
 # opening up connection, grabbing the page
+my_url = "https://www.vuokraovi.com/vuokra-asunnot/Uusimaa"
 uClient = uReq(my_url)
 page_html = uClient.read()
-uClient.close()
-
-# html parsing
 page_soup = soup(page_html, "html.parser")
 
-# grabs each product
-containers = page_soup.findAll("div",{"class":"item-container"})
-
-filename = "products.csv"
+filename = "asunnot.csv"
 f = open(filename, "w")
 
-headers = "brand, product_name, shipping\n"
+headers = "Kohdetta Vuokraa, Huoneistot, Talotyyppi ja Koko, Sijainti, Vapautuu, Vuokra, \n"
 
 f.write(headers)
+count = 0
 
-for container in containers:
-	brand = container.findAll("img", {"class":" lazy-img"})[1]["title"]
-	
-	title_container = container.findAll("a",{"class":"item-title"})
-	product_name = title_container[0].text
+# grabs the lists for headers
+pages = soup(page_html, "html.parser").findAll("ul", {"class":"pagination"})
 
-	shipping_container = container.findAll("li", {"class":"price-ship"})
-	shipping = shipping_container[0].text.strip()
-	if shipping == "":
-		shipping = "N/A"
+lastpage = int(pages[0].findAll("li")[7].text)
 
+pages = list(range(1, int(lastpage) + 1))
+for page in pages:
+	my_url = "https://www.vuokraovi.com/vuokra-asunnot/Uusimaa?page=%s&pageType=" % (page)
+	containers = page_soup.findAll("div", {"class": "list-item-container"})
+	uClient = uReq(my_url)
+	page_html = uClient.read()
+	page_soup = soup(page_html, "html.parser")
+	print("Processing page: %s" % (page))
 
+	for container in containers:
+		try:
+			Vuokranantaja = container.findAll("div", {"class": "hidden-xs col-sm-3 col-4"})[0].img["alt"]
+		except TypeError:
+			Vuokranantaja = container.findAll("div", {"class": "hidden-xs col-sm-3 col-4"})[0].p.strong.text.strip()
+		except:
+			Vuokranantaja = "Ei Tiedossa"
+		Huoneistot = container.findAll("li", {"class": "semi-bold"})[1].text
 
-	print("Brand:", brand)
-	print("Product:", product_name)
-	print("Shipping:", shipping)
+		Talotyyppi = container.findAll("li", {"class": "semi-bold"})[0].text
 
-	f.write(brand + "," + product_name.replace(",", "|") + "," + shipping + "\n")
+		Sijainti = \
+		container.findAll("div", {"class": "hidden-xs col-sm-4 col-3"})[0].findAll("span", {"class": "address"})[
+			0].text.strip().replace("\r", "").replace("\n", "").replace(" ", "").replace(",", ", ")
+		try:
+			Vapautuu = container.findAll("div", {"class": "hidden-xs col-sm-4 col-3"})[0].findAll("span", {
+				"class": "showing-lease-container hidden-xs"})[0].li.text
+		except AttributeError:
+			Vapautuu = "Ei Tiedossa"
+		Vuokra = container.findAll("li", {"class": "rent"})[0].text.strip()
+
+		print("Kohdetta Vuokraa:", Vuokranantaja)
+		print("Huoneistot:", Huoneistot)
+		print("Talotyyppi ja Koko:", Talotyyppi)
+		print("Sijainti:", Sijainti)
+		print("Vapautuu:", Vapautuu)
+		print("Vuokra:", Vuokra)
+		print("")
+
+		count += 1
+		f.write(Vuokranantaja.replace(",", " |") + "," + Huoneistot.replace(",", " - ") + "," + Talotyyppi.replace(",",
+																												   ".") + "," + Sijainti.replace(
+			",", " -") + "," + Vapautuu + "," + Vuokra.replace(",", ".") + "\n")
 
 f.close()
+print("Asuntojen Määrä:", count)
